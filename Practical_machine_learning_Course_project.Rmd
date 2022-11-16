@@ -1,0 +1,119 @@
+---
+title: "Coursera Practical Machine Learning Course Project"
+author: "Zhiyu Lu"
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+output:
+  html_document: default
+  pdf_document:
+    latex_engine: xelatex
+  word_document: default
+---
+
+## Overview
+
+In this report, we will use data from accelerometers on the belts, forearms, arms, and dumbbells of six participants to predict how they will exercise. This is the "class" variable in the training set. We used k-fold cross validation to train four models in the training set: decision tree, random forest, gradient enhancement tree and support vector machine. We then made predictions using a randomly selected validation set from the training csv data to obtain accuracy and out-of-sample error rates. Based on these numbers, we decided on the best model and used it to predict what would happen with 20 test csv sets.
+
+## Background
+
+Using devices such as Jawbone Up, Nike FuelBand, and Fitbit it is now possible to collect a large amount of data about personal activity relatively inexpensively. These type of devices are part of the quantified self movement - a group of enthusiasts who take measurements about themselves regularly to improve their health, to find patterns in their behavior, or because they are tech geeks. One thing that people regularly do is quantify how much of a particular activity they do, but they rarely quantify how well they do it. In this project, your goal will be to use data from accelerometers on the belt, forearm, arm, and dumbell of 6 participants. They were asked to perform barbell lifts correctly and incorrectly in 5 different ways. More information is available from the website here: (<http://groupware.les.inf.puc-rio.br/har>) (see the section on the Weight Lifting Exercise Dataset).
+
+The training data for this project are available here:
+
+<https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv>
+
+The test data are available here:
+
+<https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv>
+
+The data for this project come from this source: <http://web.archive.org/web/20161224072740/http:/groupware.les.inf.puc-rio.br/har>. If you use the document you create for this class for any purpose please cite them as they have been very generous in allowing their data to be used for this kind of assignment.
+
+## Data Pocessing
+
+```{r}
+library(lattice)
+library(ggplot2)
+library(caret)
+library(kernlab)
+library(rattle)
+library(corrplot)
+set.seed(1234)
+
+train_Raw <- read.csv("pml-training.csv")
+test_Raw<- read.csv("pml-testing.csv")
+
+dim(train_Raw)
+dim(test_Raw)
+```
+
+Now we are going to remove N/A variables and other unnecessary variables.
+
+```{r}
+train_Raw <- train_Raw[,colMeans(is.na(train_Raw)) < .9]
+train_Raw <- train_Raw[,-c(1:7)]
+nvz <- nearZeroVar(train_Raw)
+train_Raw <- train_Raw[,-nvz]
+```
+
+Now we split the training set into a sub training set and a validation set, such that our testing set will be applied in the final cases.
+
+```{r}
+inTrain <- createDataPartition(y=train_Raw$classe, p=0.7, list=F)
+train <- train_Raw[inTrain,]
+valid <- train_Raw[-inTrain,]
+```
+
+## Model Establishment
+
+Here, models such as **Decision Trees**and **Random Forest** will be applied.
+
+Firstly, we are supposed to control for training to use 3-fold cross validation.
+
+```{r}
+control <- trainControl(method="cv", number=3, verboseIter=F)
+```
+
+Correlation matrix of variables in training set.
+
+```{r}
+corrPlot <- cor(train[, -length(names(train))])
+corrplot(corrPlot, method="color")
+```
+
+### 1. Decision Tree
+
+```{r}
+mod_trees <- train(classe~., data=train, method="rpart", trControl = control, tuneLength = 5)
+fancyRpartPlot(mod_trees$finalModel)
+
+pred_trees <- predict(mod_trees, valid)
+trees <- confusionMatrix(pred_trees, factor(valid$classe))
+trees
+
+plot(mod_trees)
+```
+
+### 2. Random Forest
+
+```{r}
+mod_rf <- train(classe~., data=train, method="rf", trControl = control, tuneLength = 5)
+
+pred_rf <- predict(mod_rf, valid)
+rf <- confusionMatrix(pred_rf, factor(valid$classe))
+rf
+
+plot(mod_rf)
+```
+
+Among such models, we finally conclude that the best model is the Random Forest model with 0.9957519 accuracy and 0.0042481 out of sample error rate, which is also considered to be sufficient enough for ouer model.
+
+## Final Predictions
+
+Eventually, we just use the Random Forest model to predict the testing set and see how the result will be.
+
+```{r}
+pred_test <- predict(mod_rf, test_Raw)
+pred_test
+```
+
+
+
